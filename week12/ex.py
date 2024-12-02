@@ -7,6 +7,7 @@ import math
 
 import queue
 
+
 import numpy as np
 import cv2
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QSize, QTimer
@@ -91,8 +92,14 @@ class Thread_out(threading.Thread):
         self.roi_pos2 = (0, 0)
 
         self.is_restart = False
-        self.is_meanshift = True
-        self.init_mean = True
+        self.is_meanshift = False
+        self.init_mean = None
+        self.roi_hist = None
+        self.track_window = None
+        self.term_crit = None
+        self.mean_pos = (0,0,0,0)
+
+        self.frame = None
 
     def run(self):
         global Processing_stop
@@ -103,6 +110,7 @@ class Thread_out(threading.Thread):
             if self.qu.qsize() > 0:
                 cnt_edge = 10
                 frame = self.qu.get()
+                self.frame = frame
 
                 if self.EDGE_TYPE == 'Laplacian':
                     frame = cv2.Laplacian(frame, cv2.CV_8U, ksize=3)
@@ -222,32 +230,31 @@ class Thread_out(threading.Thread):
                     if self.pos_center[1] < self.roi_pos2[1]:
                         self.dp_change()
                         self.is_restart = True
+
+    def same_roi_mean(self):
+        if self.mean_pos[0] > self.roi_pos1[0]:
+            if self.mean_pos[1] > self.roi_pos1[1]:
+                if self.mean_pos[0] < self.roi_pos2[0]:
+                    if self.mean_pos[1] < self.roi_pos2[1]:
+                        self.dp_change()
+                        self.is_restart = True
     
     def dp_change(self):
-        if self.is_restart == False:
-            pyautogui.hotkey('command', '\t')
+        if not self.is_restart:
+            #pyautogui.hotkey('command', '\t')
+            pyautogui.hotkey('alt', 'tab')
             print("display changed")
     
     def meanshift(self, frame):
-        (x, y, w, h) = cv2.selectROI('orange', frame)
-        track_window = (x, y, w, h)
-        # set up the ROI for tracking
-        roi = frame[y:y+h, x:x+w]
-        hsv_roi =  cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
-        roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
-        cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
-        self.init_mean = roi_hist
-        if self.init_mean is True:
-            term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
-            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-            dst = cv2.calcBackProject([hsv],[0],roi_hist,[0,180],1)
-            # apply meanshift to get the new location
-            ret, track_window = cv2.meanShift(dst, track_window, term_crit)
-            # Draw it on image
-            x,y,w,h = track_window
-            frame = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
-            self.is_meanshift = False
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        dst = cv2.calcBackProject([hsv],[0],self.roi_hist,[0,180],1)
+        # apply meanshift to get the new location
+        ret, track_window = cv2.meanShift(dst, self.track_window, self.term_crit)
+        # Draw it on image
+        x,y,w,h = track_window
+        self.mean_pos = (int(x+(w/2)), int(y+(h/2)))
+        frame = cv2.circle(frame, self.mean_pos, 5, (0, 0, 255), -1)
+        frame = cv2.rectangle(frame, (x,y), (x+w,y+h), 255,2)
         return frame
 
 class Window(QMainWindow):
@@ -287,6 +294,8 @@ class Window(QMainWindow):
         self.pos2 = 0, 0
 
         self.is_restart = False
+
+        self.init_mean = None
 
         self.label_image = QLabel(self)
         self.img_size = QSize(640, 480)
@@ -455,7 +464,19 @@ class Window(QMainWindow):
         self.timer.timeout.connect(self.display_video_stream_v2)
     
     def start_meanshift(self):
+        (x, y, w, h) = cv2.selectROI('orange', self.th_out.frame)
+        cv2.destroyAllWindows()
+        self.th_out.track_window = (x, y, w, h)
+        # set up the ROI for tracking
+        hsv_roi =  cv2.cvtColor(self.th_out.frame, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
+        roi_hist = cv2.calcHist([hsv_roi],[0],mask,[180],[0,180])
+        cv2.normalize(roi_hist,roi_hist,0,255,cv2.NORM_MINMAX)
+        self.th_out.term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
+        self.th_out.roi_hist = roi_hist
+        self.th_out.init_mean = roi_hist
         self.th_out.is_meanshift = True
+
     
     def restart(self):
         self.th_out.is_restart = False
