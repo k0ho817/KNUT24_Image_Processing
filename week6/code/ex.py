@@ -11,7 +11,7 @@ class Window(QMainWindow):
         self.cnt = 0
 
         # create LineEdit Object
-        self.edit = QLineEdit('Wrtie image path here')
+        self.edit = QLineEdit('Write image path here')
         self.pos1_x = QLineEdit('')
         self.pos1_y = QLineEdit('')
         self.pos2_x = QLineEdit('')
