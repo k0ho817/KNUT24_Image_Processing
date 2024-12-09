@@ -241,8 +241,8 @@ class Thread_out(threading.Thread):
     
     def dp_change(self):
         if not self.is_restart:
-            #pyautogui.hotkey('command', '\t')
-            pyautogui.hotkey('alt', 'tab')
+            pyautogui.hotkey('command', '\t')
+            pyautogui.hotkey('command', '\t')
             print("display changed")
     
     def meanshift(self, frame):
@@ -300,6 +300,66 @@ class Window(QMainWindow):
         self.label_image = QLabel(self)
         self.img_size = QSize(640, 480)
         self.label_image.setFixedSize(self.img_size)
+
+        self.pos1_x = QLineEdit('')
+        self.pos1_y = QLineEdit('')
+        self.pos2_x = QLineEdit('')
+        self.pos2_y = QLineEdit('')
+        self.pos3_x = QLineEdit('')
+        self.pos3_y = QLineEdit('')
+        self.pos4_x = QLineEdit('')
+        self.pos4_y = QLineEdit('')
+
+        self.init_pos = QPushButton('Initialize Pos')
+        self.perspective = QPushButton('Perspective Image')
+
+        self.pos1_label = QLabel('Pos1')
+        self.pos2_label = QLabel('Pos2')
+        self.pos3_label = QLabel('Pos3')
+        self.pos4_label = QLabel('Pos4')
+
+        pos_grid = QGridLayout()
+        pos_grid.addWidget(self.pos1_label, 0,0)
+        pos_grid.addWidget(self.pos1_x, 0,1)
+        pos_grid.addWidget(self.pos1_y, 0,2)
+        pos_grid.addWidget(self.pos2_label, 0,3)
+        pos_grid.addWidget(self.pos2_x, 0,4)
+        pos_grid.addWidget(self.pos2_y, 0,5)
+        pos_grid.addWidget(self.pos3_label, 1,0)
+        pos_grid.addWidget(self.pos3_x, 1,1)
+        pos_grid.addWidget(self.pos3_y, 1,2)
+        pos_grid.addWidget(self.pos4_label, 1,3)
+        pos_grid.addWidget(self.pos4_x, 1,4)
+        pos_grid.addWidget(self.pos4_y, 1,5)
+
+        h_layout3 = QHBoxLayout()
+        h_layout3.addLayout(pos_grid)
+        h_layout3.addWidget(self.init_pos)
+        h_layout3.addWidget(self.perspective)
+        self.init_pos.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.perspective.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+
+        self.perspective.clicked.connect(self.perspective_image)
+        self.init_pos.clicked.connect(self.initialize_pos)
+
+        self.init_pos = QPushButton('Initialize Pos')
+        self.perspective = QPushButton('Perspective Image')
+
+        self.bin_btn = QPushButton('Binary Image')
+        
+        self.geo_label = QLabel("Geometry Type:")
+        self.geo_btn = QPushButton('Geometry Image')
+        self.bin_btn.clicked.connect(self.binary_image)
+        self.geo_btn.clicked.connect(self.geometry_image)
+        self.combobox_geo = QComboBox()
+        self.combobox_geo.addItem('flip')
+        self.combobox_geo.addItem('translation')
+        self.combobox_geo.addItem('rotation')
+
+        geo_layout = QHBoxLayout()
+        geo_layout.addWidget(self.geo_label)
+        geo_layout.addWidget(self.combobox_geo)
+        geo_layout.addWidget(self.geo_btn)
 
         self.scroll_bar = QScrollBar(Qt.Horizontal)  # 수평 스크롤바
         self.scroll_bar.setMinimum(0)  # 최소값 설정
@@ -412,6 +472,7 @@ class Window(QMainWindow):
         self.button_labeling = QPushButton("Labeling")
 
         self.button_load_Img.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.bin_btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.edit.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.button_REC.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self.button_labeling.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
@@ -420,6 +481,7 @@ class Window(QMainWindow):
         bottom_layout.addWidget(self.edit)
         bottom_layout.addLayout(layout_loading_type)
         bottom_layout.addWidget(self.button_load_Img)
+        bottom_layout.addWidget(self.bin_btn)
         bottom_layout.addWidget(self.button_REC)
         bottom_layout.addWidget(self.button_labeling)
         bottom_layout.addWidget(self.meanshift_button)
@@ -441,6 +503,8 @@ class Window(QMainWindow):
         layout.addLayout(layout_img_canvas)
         layout.addLayout(bottom_layout)
         layout.addLayout(edge_layout)
+        layout.addLayout(geo_layout)
+        layout.addLayout(h_layout3)
         layout.addWidget(self.button_restart)
 
         # Central widget
@@ -463,6 +527,82 @@ class Window(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.display_video_stream_v2)
     
+    def mousePressEvent(self, event):
+        x = event.position().x() - self.label_image.x()
+        y = event.position().y() - self.label_image.x()
+        x, y = int(x), int(y)
+
+        if self.MODE_VIDEO is True:
+            label_pos = self.label_image.geometry().getCoords()
+            if label_pos[2] > x and label_pos[3] > y:
+                if self.mouse_cnt == 0:
+                    self.th_out.roi_x1 = x
+                    self.th_out.roi_y1 = y
+                    self.mouse_cnt += 1
+
+                elif self.mouse_cnt == 1:
+                    self.th_out.roi_x2 = x
+                    self.th_out.roi_y2 = y
+                    self.th_out.is_roi_ready = True
+                    self.mouse_cnt = 0
+                    
+        elif self.MODE_VIDEO is False:
+            if self.cnt == 0:
+                self.pos1_x.setText(f'{x}')
+                self.pos1_y.setText(f'{y}')
+                self.cnt += 1
+                cv2.circle(self.m_proc_img, (x,y), 5, (255,0,0), -1)
+            
+            elif self.cnt == 1:
+                self.pos2_x.setText(f'{x}')
+                self.pos2_y.setText(f'{y}')
+                self.cnt += 1
+                cv2.circle(self.m_proc_img, (x,y), 5, (0,255,0), -1)
+            
+            elif self.cnt == 2:
+                self.pos3_x.setText(f'{x}')
+                self.pos3_y.setText(f'{y}')
+                self.cnt += 1
+                cv2.circle(self.m_proc_img, (x,y), 5, (0,0,255), -1)
+            
+            elif self.cnt == 3:
+                self.pos4_x.setText(f'{x}')
+                self.pos4_y.setText(f'{y}')
+                self.cnt += 1
+                cv2.circle(self.m_proc_img, (x,y), 5, (255,0,255), -1)
+            self.update_image(self.m_proc_img)
+    
+    def initialize_pos(self):
+        self.cnt = 0
+        self.pos1_x.setText('')
+        self.pos1_y.setText('')
+        self.pos2_x.setText('')
+        self.pos2_y.setText('')
+        self.pos3_x.setText('')
+        self.pos3_y.setText('')
+        self.pos4_x.setText('')
+        self.pos4_y.setText('')
+        self.m_proc_img = self.m_main_img.copy()
+        self.update_image(self.m_proc_img)
+
+    def perspective_image(self):
+        rows, cols = self.m_proc_img.shape[:2]
+        x1 = self.pos1_x.text()
+        y1 = self.pos1_y.text()
+        x2 = self.pos2_x.text()
+        y2 = self.pos2_y.text()
+        x3 = self.pos3_x.text()
+        y3 = self.pos3_y.text()
+        x4 = self.pos4_x.text()
+        y4 = self.pos4_y.text()
+
+        pts1 = np.float32([[x1, y1], [x2, y2], [x3, y3], [x4, y4]])
+        pts2 = np.float32([[0,0], [cols-1, 0], [cols-1, rows-1], [0, rows-1]])
+        Mat1 = cv2.getPerspectiveTransform(pts1, pts2)
+        self.m_proc_img = cv2.warpPerspective(self.m_proc_img, Mat1, (cols, rows))
+
+        self.update_image(self.m_proc_img)
+    
     def start_meanshift(self):
         (x, y, w, h) = cv2.selectROI('orange', self.th_out.frame)
         cv2.destroyAllWindows()
@@ -477,28 +617,9 @@ class Window(QMainWindow):
         self.th_out.init_mean = roi_hist
         self.th_out.is_meanshift = True
 
-    
     def restart(self):
         self.th_out.is_restart = False
         self.th_out.pos_center = (0,0)
-    
-    def mousePressEvent(self, event):
-        if self.MODE_VIDEO is True:
-            label_pos = self.label_image.geometry().getCoords()
-            x = event.position().x() - self.label_image.x()
-            y = event.position().y() - self.label_image.x()
-            x, y = int(x), int(y)
-            if label_pos[2] > x and label_pos[3] > y:
-                if self.mouse_cnt == 0:
-                    self.th_out.roi_x1 = x
-                    self.th_out.roi_y1 = y
-                    self.mouse_cnt += 1
-
-                elif self.mouse_cnt == 1:
-                    self.th_out.roi_x2 = x
-                    self.th_out.roi_y2 = y
-                    self.th_out.is_roi_ready = True
-                    self.mouse_cnt = 0
 
 
     def start_haar(self):
@@ -716,14 +837,14 @@ class Window(QMainWindow):
         print("update image")
 
     def geometry_image(self):
-        if self.combobox.currentIndex() == 0:
+        if self.combobox_geo.currentIndex() == 0:
             self.m_proc_img = cv2.flip(self.m_proc_img, 1)
-        elif self.combobox.currentIndex() == 1:
+        elif self.combobox_geo.currentIndex() == 1:
             rows, cols = self.m_proc_img.shape[:2]
             Mat = np.float32([[1, 0, 50], [0, 1, 20]])
             self.m_proc_img = cv2.warpAffine(self.m_proc_img, Mat, (cols, rows),
                                              borderMode=cv2.BORDER_REPLICATE)
-        elif self.combobox.currentIndex() == 2:
+        elif self.combobox_geo.currentIndex() == 2:
             rows, cols = self.m_proc_img.shape[:2]
             Mat = cv2.getRotationMatrix2D((cols / 2, rows / 2), 60, 1.0)
             self.m_proc_img = cv2.warpAffine(self.m_proc_img, Mat, (cols, rows),
